@@ -76,18 +76,23 @@ public class ServerScript : MonoBehaviour
     private void StartListening()
     {
         server.BeginAcceptTcpClient(AcceptTcpClient, server);
-
     }
     private void AcceptTcpClient(IAsyncResult ar)
     {
         TcpListener listener = (TcpListener)ar.AsyncState;
+
+        string allUsers = "";
+        foreach (ServerClient i in clients)
+        {
+            allUsers += i.clientName + "|";
+        }
 
         ServerClient sc = new ServerClient(listener.EndAcceptTcpClient(ar));
         clients.Add(sc);
 
         StartListening();
 
-        Debug.Log("Somebody has connected");
+        Broadcast("SWHO|" + allUsers, clients[clients.Count - 1]);
     }
 
     private bool IsConnected(TcpClient c)
@@ -109,10 +114,53 @@ public class ServerScript : MonoBehaviour
             return false;
         }
     }
+    //Server Send
+    private void Broadcast(string data, List<ServerClient> cl)
+    {
+        foreach(ServerClient sc in cl)
+        {
+            try
+            {
+                StreamWriter writer = new StreamWriter(sc.tcp.GetStream());
+                writer.WriteLine(data);
+                writer.Flush();
+            }
+            catch (Exception e)
+            {
 
+                Debug.Log("Write error : " + e.Message);
+
+            }
+        }
+    }
+    private void Broadcast(string data, ServerClient c)
+    {
+        List<ServerClient> sc = new List<ServerClient> { c };
+        Broadcast(data, sc);
+    }
+    //Server Read
     private void OnIncomingData(ServerClient c, string data)
     {
-       Debug.Log(c.clientName + " : " + data);
+        //Debug.Log("Server " + data);
+
+        string[] aData = data.Split('|');
+        switch (aData[0])
+        {
+            case "CWHO":
+                c.clientName = aData[1];
+                Broadcast("SCNN|" + c.clientName, clients);
+                break;
+            default:
+                if (c.clientName == "Host")
+                {
+                    Broadcast(aData[0] + "|", clients[1]);
+                }
+                else
+                {
+                    Broadcast(aData[0] + "|", clients[0]);
+                }
+                break;
+        }
     }
 }
 public class ServerClient
